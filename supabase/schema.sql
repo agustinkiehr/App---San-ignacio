@@ -190,6 +190,47 @@ create policy "registros_acceso_select_publico"
     using (true);
 
 -- =========================================================
+-- Tabla: beneficios (Fase 2 del PRD)
+-- =========================================================
+-- Comercios adheridos con descuentos para socios. Se gestiona a mano desde
+-- el Table Editor de Supabase (altas, bajas y ediciones) — no hay panel de
+-- admin propio todavía, mismo patrón que solicitudes_acceso.
+create table if not exists beneficios (
+    id uuid primary key default gen_random_uuid(),
+    nombre_comercio varchar(150) not null,
+    rubro varchar(30) not null
+        check (rubro in ('GASTRONOMIA', 'DEPORTES', 'SALUD', 'INDUMENTARIA', 'OTROS')),
+    subtitulo varchar(150),
+    descuento varchar(50) not null,
+    descripcion text not null,
+    condiciones text[] not null default '{}',
+    direccion text,
+    telefono varchar(30),
+    whatsapp varchar(30),
+    mapa_url text,
+    vigencia_hasta date,
+    destacado boolean not null default false,
+    activo boolean not null default true,
+    orden int not null default 0,
+    created_at timestamptz not null default now()
+);
+
+comment on table beneficios is 'Comercios adheridos con descuentos para socios (Fase 2 del PRD). Se gestiona a mano desde el Table Editor de Supabase, no hay panel de admin propio.';
+comment on column beneficios.rubro is 'Categoría para los chips de filtro: GASTRONOMIA, DEPORTES, SALUD, INDUMENTARIA, OTROS.';
+comment on column beneficios.condiciones is 'Lista de condiciones de uso, una por elemento (se muestran como bullets en el detalle).';
+comment on column beneficios.destacado is 'true = aparece en la sección "Destacado de la semana" arriba del listado.';
+
+create index if not exists idx_beneficios_rubro on beneficios (rubro);
+create index if not exists idx_beneficios_activo on beneficios (activo);
+
+alter table beneficios enable row level security;
+
+drop policy if exists "beneficios_select_publico" on beneficios;
+create policy "beneficios_select_publico"
+    on beneficios for select
+    using (activo = true);
+
+-- =========================================================
 -- Datos de ejemplo (opcional, útil para probar el MVP)
 -- =========================================================
 insert into socios (numero_socio, dni, nombre, apellido, categoria, estado_cuota, vencimiento)
@@ -199,3 +240,14 @@ values
     ('00099', '15678901', 'Carlos', 'Perez', 'Vitalicio', 'INACTIVO', '2025-01-31'),
     ('00002', null, 'Gabriel', 'Cabrera', 'Jugador Activo', 'AL_DIA', '2026-12-31')
 on conflict (numero_socio) do nothing;
+
+-- Placeholder deliberadamente ficticio (no un comercio real): reemplazar o
+-- desactivar cuando se carguen los sponsors/comercios adheridos reales.
+insert into beneficios (nombre_comercio, rubro, subtitulo, descuento, descripcion, condiciones, destacado, orden, activo)
+values (
+    'EJEMPLO — reemplazar por un comercio real', 'OTROS', 'Placeholder de prueba', 'XX% OFF',
+    'Esta fila es sólo un ejemplo de cómo se ve una tarjeta de beneficio. Reemplazar o desactivar cuando se carguen los sponsors reales.',
+    array['Editar esta fila en el Table Editor de Supabase (tabla beneficios) con los datos reales.'],
+    false, 0, true
+)
+on conflict do nothing;

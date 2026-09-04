@@ -47,3 +47,40 @@ export const ESTADO_LABEL: Record<EstadoCuota, string> = {
   PENDIENTE: 'Cuota pendiente',
   INACTIVO: 'Socio inactivo',
 }
+
+export type Rubro = 'GASTRONOMIA' | 'DEPORTES' | 'SALUD' | 'INDUMENTARIA' | 'OTROS'
+
+export interface Beneficio {
+  id: string
+  nombre_comercio: string
+  rubro: Rubro
+  subtitulo: string | null
+  descuento: string
+  descripcion: string
+  condiciones: string[]
+  direccion: string | null
+  telefono: string | null
+  whatsapp: string | null
+  mapa_url: string | null
+  vigencia_hasta: string | null
+  destacado: boolean
+  activo: boolean
+  orden: number
+  created_at: string
+}
+
+export const RUBRO_LABEL: Record<Rubro, string> = {
+  GASTRONOMIA: 'Gastronomía',
+  DEPORTES: 'Deportes',
+  SALUD: 'Salud & Bienestar',
+  INDUMENTARIA: 'Indumentaria',
+  OTROS: 'Otros',
+}
+
+export const RUBRO_ICON: Record<Rubro, string> = {
+  GASTRONOMIA: 'restaurant',
+  DEPORTES: 'sports_rugby',
+  SALUD: 'healing',
+  INDUMENTARIA: 'checkroom',
+  OTROS: 'storefront',
+}

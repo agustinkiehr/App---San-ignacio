@@ -21,10 +21,13 @@
 }
 
 @layer utilities {
-  .safe-top {
+  /* Usadas en headers fijos y en el bottom nav para respetar el notch/home
+     indicator. "pt-safe"/"pb-safe" no son utilidades de Tailwind por sí
+     solas; se usaban en varias pantallas dando por hecho que existían. */
+  .pt-safe {
     padding-top: env(safe-area-inset-top);
   }
-  .safe-bottom {
+  .pb-safe {
     padding-bottom: env(safe-area-inset-bottom);
   }
 }

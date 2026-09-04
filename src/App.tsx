@@ -5,6 +5,8 @@ import HomePage from './pages/HomePage'
 
 // html5-qrcode es pesado y sólo lo necesita portería: se separa en su propio chunk.
 const PorteriaPage = lazy(() => import('./pages/PorteriaPage'))
+const BeneficiosPage = lazy(() => import('./pages/BeneficiosPage'))
+const BeneficioDetallePage = lazy(() => import('./pages/BeneficioDetallePage'))
 
 // Login + Solicitar Acceso quedaron en pausa (ver README): las páginas y el
 // backend (Supabase Auth, tabla solicitudes_acceso, RPC dni_to_email) siguen
@@ -21,6 +23,22 @@ export default function App() {
         element={
           <Suspense fallback={<div className="min-h-screen bg-ivy-700" />}>
             <PorteriaPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/beneficios"
+        element={
+          <Suspense fallback={<div className="min-h-screen bg-surface-chalk" />}>
+            <BeneficiosPage />
+          </Suspense>
+        }
+      />
+      <Route
+        path="/beneficios/:id"
+        element={
+          <Suspense fallback={<div className="min-h-screen bg-surface-chalk" />}>
+            <BeneficioDetallePage />
           </Suspense>
         }
       />

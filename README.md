@@ -1,11 +1,12 @@
 # San Ignacio Rugby — App de Socios (MVP)
 
 PWA para socios de San Ignacio Rugby. Alcance activo hoy: **Carnet Digital**
-(al día / en mora, por número de socio, sin login) y **Panel de Portería**
-con validación de acceso por QR, DNI o número de socio. Construida sobre el
-UI kit real de Stitch (`stitch_san_ignacio_rugby_socios_app`) y el PRD del
-club — ver `docs/prd_san_ignacio_rugby_club.md` para el roadmap completo
-(Fases 1-3).
+(al día / en mora, por número de socio, sin login), **Panel de Portería**
+con validación de acceso por QR, DNI o número de socio, y **Beneficios**
+(directorio de comercios adheridos con descuento — primera pieza de la Fase
+2 del PRD). Construida sobre el UI kit real de Stitch
+(`stitch_san_ignacio_rugby_socios_app`) y el PRD del club — ver
+`docs/prd_san_ignacio_rugby_club.md` para el roadmap completo (Fases 1-3).
 
 ## ⏸️ Login + Solicitar Acceso: en pausa
 
@@ -93,28 +94,34 @@ src/
     CarnetCard.tsx        # Carnet visual (avatar, N°/vence, estado, QR)
     SocioAvatar.tsx         # Foto o iniciales
     StatusBadge.tsx          # Chip de estado de cuota (al día/pendiente/inactivo)
-    BottomNav.tsx             # Nav inferior de 5 pestañas (sólo "Carnet" activa)
+    BottomNav.tsx             # Nav inferior de 5 pestañas (Carnet y Beneficios activas)
     QrScanner.tsx              # Wrapper de cámara sobre html5-qrcode
     RequireAuth.tsx             # Guard de sesión — en pausa, no enrutado (ver arriba)
     porteria/
       ScanResultCard.tsx        # Resultado de la última lectura + override
       RecentAccessList.tsx       # Últimos accesos en vivo
       ManualEntryForm.tsx         # Ingreso manual por DNI/N° de socio
+    beneficios/
+      FeaturedBeneficio.tsx        # Card grande "Destacado de la semana"
+      BeneficioCard.tsx              # Card de comercio en el listado
   lib/
     supabase.ts             # Cliente Supabase
     AuthContext.tsx           # Sesión de Supabase Auth — en pausa, no enrutado
     socios.ts                   # Acceso a datos de socios + caché offline
     solicitudes.ts                # signUp + alta pendiente — en pausa, no enrutado
-    types.ts                        # Tipos Socio / RegistroAcceso / SolicitudAcceso
-    useWakeLock.ts                    # Hook para "subir brillo" (Wake Lock API)
+    beneficios.ts                    # Acceso a datos de beneficios + helpers de mapa/whatsapp
+    types.ts                            # Tipos Socio / RegistroAcceso / SolicitudAcceso / Beneficio
+    useWakeLock.ts                        # Hook para "subir brillo" (Wake Lock API)
   pages/
     HomePage.tsx               # Selección Mi Carnet / Panel de Portería
     LoginPage.tsx                 # En pausa, no enrutado (ver arriba)
     SolicitarAccesoPage.tsx         # En pausa, no enrutado (ver arriba)
     CarnetPage.tsx                    # Carnet por número de socio (sin login)
     PorteriaPage.tsx                    # Dashboard de portería completo
+    BeneficiosPage.tsx                    # Listado de comercios adheridos (búsqueda + filtro)
+    BeneficioDetallePage.tsx                # Detalle de un beneficio (cómo usarlo, condiciones, contacto)
 supabase/
-  schema.sql                            # DDL completo (tablas, RLS, triggers, RPC, datos demo)
+  schema.sql                                # DDL completo (tablas, RLS, triggers, RPC, datos demo)
 ```
 
 ## Reglas de negocio implementadas
@@ -143,6 +150,17 @@ supabase/
   6. Tiene un cooldown de reescaneo (4s) para no duplicar registros cuando la
      cámara sigue leyendo el mismo QR en frames sucesivos, y un botón
      "Reiniciar lector" que remonta la cámara si se traba.
+- **Beneficios** (`/beneficios`, `/beneficios/:id`): directorio de comercios
+  adheridos con descuento, sin login (igual que el resto de la app hoy).
+  Búsqueda por texto y chips de categoría (Gastronomía, Deportes, Salud &
+  Bienestar, Indumentaria, Otros) filtran en el cliente sobre lo que ya se
+  trajo de Supabase. Si hay un beneficio con `destacado = true`, aparece
+  arriba de todo en "Destacado de la semana" (se oculta mientras haya un
+  filtro/búsqueda activa). El detalle tiene "Mostrar mi carnet" (va a
+  `/carnet`), y botones de Llamar / WhatsApp / Mapa que sólo aparecen si el
+  comercio cargó `telefono` / `whatsapp` / `direccion` respectivamente.
+  **Se gestiona 100% desde el Table Editor de Supabase** (tabla
+  `beneficios`) — no hay pantalla de admin para cargar comercios todavía.
 
 ## Setup
 
@@ -161,26 +179,48 @@ migración directamente contra el proyecto. Si preferís hacerlo a mano:
 1. Abrir el SQL Editor del proyecto en supabase.com.
 2. Correr `supabase/schema.sql` (es idempotente, se puede re-correr sin
    romper nada). Crea `socios`, `registros_acceso`, `solicitudes_acceso`
-   (esta última en desuso mientras el login esté pausado), índices, RLS, y 4
-   socios de ejemplo (incluye `01850 - Kiehr, Agustín - AL_DIA`, igual al
-   carnet de referencia).
+   (esta última en desuso mientras el login esté pausado), `beneficios`,
+   índices, RLS, 4 socios de ejemplo (incluye `01850 - Kiehr, Agustín -
+   AL_DIA`, igual al carnet de referencia) y **una sola fila de beneficio
+   deliberadamente marcada como "EJEMPLO"** — no hay comercios reales
+   cargados todavía, ver "Cargar beneficios reales" más abajo.
 3. Copiar la URL del proyecto y la `anon key` (Project Settings → API) a
    `.env`.
 
+### Cargar beneficios reales (secretaría / marketing)
+
+La tabla `beneficios` no tiene panel de admin propio: se carga a mano desde
+**Supabase Dashboard → Table Editor → beneficios → Insert row**. Por cada
+comercio: `nombre_comercio`, `rubro` (uno de `GASTRONOMIA` / `DEPORTES` /
+`SALUD` / `INDUMENTARIA` / `OTROS`), `descuento` (texto libre, ej. `"20%
+OFF"`), `descripcion`, `condiciones` (array de Postgres — un texto por
+bullet), y opcionalmente `direccion`, `telefono`, `whatsapp`, `mapa_url`,
+`vigencia_hasta` y `destacado` (sólo uno debería ser `true` a la vez, es el
+que aparece arriba de todo). Dejé una fila `activo = true` llamada **"EJEMPLO
+— reemplazar por un comercio real"** para no mostrar la lista vacía —
+desactivala (`activo = false`) o borrala cuando carguen datos reales.
+
+**Importante**: no hay que inventar el % de descuento ni las condiciones de
+un comercio real — cargar sólo lo que el comercio efectivamente confirmó.
+
 ### Sobre RLS
 
-`socios` y `registros_acceso` tienen lectura (y en el caso de
-`registros_acceso`, también inserción) **pública** con la anon key: tanto el
-carnet como portería necesitan resolver cualquier socio por número/QR/DNI sin
-sesión. Cualquiera con la anon key puede leer el padrón completo y el
-historial de accesos — trade-off deliberado del MVP mientras no haya login.
+`socios`, `registros_acceso` y `beneficios` tienen lectura pública con la
+anon key (y en el caso de `registros_acceso`, también inserción): carnet y
+portería necesitan resolver cualquier socio por número/QR/DNI sin sesión, y
+beneficios es un directorio público por diseño. Cualquiera con la anon key
+puede leer el padrón completo y el historial de accesos — trade-off
+deliberado del MVP mientras no haya login.
 
 ## Próximos pasos (fuera de esta iteración)
 
 - **Retomar Login + Solicitar Acceso** cuando el club esté listo para el
   cambio operativo — ver la sección de arriba, el trabajo ya está hecho.
-- **Beneficios, Parrillas, Club, Perfil** — Fase 2/3 del PRD. El `BottomNav`
-  ya muestra esas 4 pestañas (deshabilitadas, con tooltip "Próximamente")
+- **Cargar los comercios/sponsors reales en `beneficios`** — ver la sección
+  de arriba. Quedó pendiente confirmar el detalle exacto (rubro, %,
+  condiciones, contacto) de cada sponsor antes de cargarlos.
+- **Parrillas, Club, Perfil** — resto de la Fase 2/3 del PRD. El `BottomNav`
+  ya muestra esas 3 pestañas (deshabilitadas, con tooltip "Próximamente")
   para no perder la identidad de la IA completa.
 - Reemplazar el avatar por foto real (`socios.foto_url`) cuando haya carga
   de fotos del padrón.
