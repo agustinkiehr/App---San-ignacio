@@ -33,6 +33,20 @@ agregar `/login` y `/solicitar-acceso`, envolver `/carnet` en `RequireAuth`) y
 restaurar la versión de `CarnetPage.tsx` que usa `useAuth()` en vez de la
 búsqueda por número (está en el historial de git, commit `51d41b1`).
 
+**Bug conocido a arreglar antes de reactivarlo** (detectado en producción,
+confirmado con datos reales — no llegó a bloquear nada porque el login ya
+estaba pausado): `enviarSolicitudAcceso()` en `src/lib/solicitudes.ts` llama
+`supabase.auth.signUp()` y, en el mismo paso, inserta la fila en
+`solicitudes_acceso`. Si el proyecto tiene "Confirm email" activado (el
+default de Supabase), `signUp()` no deja sesión activa hasta que el usuario
+confirma el mail — y la política de `solicitudes_acceso` exige `auth.uid() =
+user_id`, así que ese insert se rechaza en silencio. Resultado: queda un
+usuario creado en `auth.users` sin ninguna fila en `solicitudes_acceso`, y
+nada para que secretaría apruebe. Hay que mover ese insert a un punto que no
+dependa de una sesión activa (por ejemplo, un trigger en Postgres sobre
+`auth.users` en vez de hacerlo desde el cliente, o desactivar la
+confirmación de email si el club no la necesita).
+
 ## Stack
 
 - **Vite + React + TypeScript**, PWA vía `vite-plugin-pwa` (manifest + service
