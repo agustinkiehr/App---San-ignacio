@@ -4,7 +4,9 @@ export default function HomePage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-10 bg-ivy-500 px-6 py-12 text-cream">
       <div className="flex flex-col items-center gap-4">
-        <img src="/brand/lockup-white.png" alt="San Ignacio Rugby" className="h-40 w-auto" />
+        <div className="rounded-2xl bg-white p-6 shadow-card">
+          <img src="/brand/lockup-color.png" alt="San Ignacio Rugby" className="h-32 w-auto" />
+        </div>
         <p className="text-center text-cream/80">Portal de socios · Desde 1979</p>
       </div>
 
