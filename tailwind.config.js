@@ -4,6 +4,7 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Paleta oficial "San Ignacio Heritage" (brand book + Stitch UI kit).
         // Verde Ivy — color primario institucional (headers, botones, carnet)
         ivy: {
           DEFAULT: '#2D5233',
@@ -18,7 +19,7 @@ export default {
           800: '#172C1B',
           900: '#0F1E12',
         },
-        // Rojo Cardinal — color de acento (alertas, estado pendiente/denegado)
+        // Rojo Cardinal — acento (activo, descuentos), sólo micro-detalles
         cardinal: {
           DEFAULT: '#D12D2E',
           50: '#FCE9E9',
@@ -32,20 +33,48 @@ export default {
           800: '#651414',
           900: '#400D0D',
         },
-        // Estados de cuota
+        // Ocre cálido — cuota por vencer / estados transicionales
+        ochre: {
+          DEFAULT: '#B8791F',
+          bg: '#FAF3E8',
+          border: '#EBD7B8',
+        },
+        // Mulberry / vino profundo — cuota vencida, alertas críticas
+        wine: {
+          DEFAULT: '#9B1C1D',
+          bg: '#FDE8E8',
+          border: '#F8B4B4',
+        },
+        // Jerarquía de superficies (modo claro, socio)
+        surface: {
+          DEFAULT: '#FFFFFF',
+          chalk: '#F4F5F3',
+          border: '#E2E5E0',
+        },
+        ink: '#1F2620',
+        // Modo nocturno de portería
+        night: {
+          DEFAULT: '#070c09',
+          panel: '#0f1911',
+          border: '#1c2b20',
+        },
+        // Estados de cuota (para badges/semántica rápida en código)
         status: {
           alDia: '#2D5233',
-          pendiente: '#C88A1E',
-          inactivo: '#D12D2E',
+          pendiente: '#B8791F',
+          inactivo: '#9B1C1D',
         },
         cream: '#F5F1E8',
       },
       fontFamily: {
-        serif: ['"Libre Baskerville"', 'Georgia', 'serif'],
+        serif: ['"Libre Caslon Text"', 'Georgia', 'serif'],
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        card: '0 10px 30px -10px rgba(15, 30, 18, 0.45)',
+        card: '0 1px 3px rgba(31, 38, 32, 0.04), 0 2px 8px rgba(31, 38, 32, 0.06)',
+      },
+      borderRadius: {
+        DEFAULT: '0.5rem',
       },
     },
   },

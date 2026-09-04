@@ -7,9 +7,11 @@ interface QrScannerProps {
   onScan: (decodedText: string) => void
   /** Mientras esté en true, el escáner ignora nuevas lecturas (por ej. mientras se muestra un resultado). */
   paused: boolean
+  /** Texto guía mostrado sobre la cámara mientras funciona correctamente. */
+  hint?: string
 }
 
-export function QrScanner({ onScan, paused }: QrScannerProps) {
+export function QrScanner({ onScan, paused, hint }: QrScannerProps) {
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const onScanRef = useRef(onScan)
   const pausedRef = useRef(paused)
@@ -65,12 +67,18 @@ export function QrScanner({ onScan, paused }: QrScannerProps) {
   }, [])
 
   return (
-    <div className="mx-auto w-full max-w-sm">
-      <div id={ELEMENT_ID} className="overflow-hidden rounded-2xl" />
-      {cameraError && (
-        <p className="mt-3 rounded-lg bg-cardinal-500/20 px-4 py-3 text-center text-sm">
+    <div className="relative w-full">
+      <div id={ELEMENT_ID} className="min-h-72 w-full overflow-hidden rounded-lg [&>video]:!w-full [&>video]:!h-full [&>video]:object-cover" />
+      {cameraError ? (
+        <p className="absolute inset-x-3 top-1/2 -translate-y-1/2 rounded-lg bg-cardinal-500/90 px-4 py-3 text-center text-sm text-white">
           No pudimos acceder a la cámara. Revisá los permisos del navegador y recargá la página.
         </p>
+      ) : (
+        hint && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center">
+            <span className="rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white/80">{hint}</span>
+          </div>
+        )
       )}
     </div>
   )

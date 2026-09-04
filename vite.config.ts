@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['favicon.png', 'apple-touch-icon.png', 'brand/*.png'],
       manifest: {
         name: 'San Ignacio Rugby - Socios',
         short_name: 'SIR Socios',
