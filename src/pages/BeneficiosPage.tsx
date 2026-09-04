@@ -87,7 +87,7 @@ export default function BeneficiosPage() {
             />
           </div>
 
-          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+          <div className="flex flex-wrap gap-2">
             <CategoryChip label={`Todos (${beneficios.length})`} active={rubroActivo === 'TODOS'} onClick={() => setRubroActivo('TODOS')} />
             {RUBROS.map((r) => (
               <CategoryChip key={r} label={RUBRO_LABEL[r]} active={rubroActivo === r} onClick={() => setRubroActivo(r)} />
