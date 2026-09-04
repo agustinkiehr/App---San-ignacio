@@ -121,7 +121,9 @@ export default function PorteriaPage() {
       <header className="border-b border-white/10 bg-night-panel px-4 py-3">
         <div className="mx-auto flex max-w-2xl items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <img src="/brand/crest-white.png" alt="" className="h-8 w-8 object-contain" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white p-1">
+              <img src="/brand/crest-color.png" alt="" className="h-full w-full object-contain" />
+            </div>
             <span className="text-sm font-semibold tracking-wide text-white/90">San Ignacio Rugby · Portería</span>
           </div>
           <div className="flex items-center gap-3">

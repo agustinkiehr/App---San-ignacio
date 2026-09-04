@@ -66,7 +66,9 @@ export default function SolicitarAccesoPage() {
             <span className="material-symbols-outlined text-[18px]">arrow_back</span>
           </Link>
           <div className="flex items-center gap-2">
-            <img src="/brand/crest-white.png" alt="" className="h-7 w-7 object-contain" />
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white p-1">
+              <img src="/brand/crest-color.png" alt="" className="h-full w-full object-contain" />
+            </div>
             <span className="font-serif text-sm font-medium tracking-wide">San Ignacio Rugby</span>
           </div>
         </div>

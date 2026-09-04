@@ -85,6 +85,24 @@ export async function fetchUltimosAccesos(limit = 3): Promise<RegistroAccesoConS
 
 const CARNET_CACHE_PREFIX = 'sir.carnetCache.'
 
+export function cacheSocio(socio: Socio): void {
+  try {
+    localStorage.setItem(`${CARNET_CACHE_PREFIX}${socio.numero_socio}`, JSON.stringify(socio))
+  } catch {
+    // localStorage no disponible (modo privado, etc.): sin caché offline, sin romper el flujo.
+  }
+}
+
+export function getCachedSocio(numeroSocio: string): Socio | null {
+  try {
+    const raw = localStorage.getItem(`${CARNET_CACHE_PREFIX}${numeroSocio}`)
+    return raw ? (JSON.parse(raw) as Socio) : null
+  } catch {
+    return null
+  }
+}
+
+// Login en pausa (ver README): estas quedan listas para cuando se retome.
 export function cacheMiSocio(userId: string, socio: Socio): void {
   try {
     localStorage.setItem(`${CARNET_CACHE_PREFIX}${userId}`, JSON.stringify(socio))

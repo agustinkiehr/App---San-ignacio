@@ -63,7 +63,9 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-ivy-500 p-6 text-white">
       <div className="flex w-full max-w-[390px] flex-col">
         <div className="mt-2 flex flex-col items-center text-center">
-          <img src="/brand/crest-white.png" alt="" className="mb-3 h-20 w-20 object-contain" />
+          <div className="mb-3 flex h-20 w-20 items-center justify-center rounded-full bg-white p-2.5 shadow-card">
+            <img src="/brand/crest-color.png" alt="" className="h-full w-full object-contain" />
+          </div>
           <h1 className="font-serif text-[22px] font-bold uppercase leading-tight tracking-[0.14em]">
             San Ignacio Rugby
           </h1>
