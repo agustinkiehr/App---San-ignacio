@@ -1,7 +1,18 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { BeneficioLogo } from '../components/beneficios/BeneficioLogo'
 import { fetchBeneficioById, mapaUrl, whatsappUrl } from '../lib/beneficios'
+import { useFavoritos } from '../lib/favoritos'
 import { RUBRO_ICON, RUBRO_LABEL, type Beneficio } from '../lib/types'
+
+function compartirBeneficio(beneficio: Beneficio) {
+  const texto = `${beneficio.nombre_comercio} — ${beneficio.descuento}\nBeneficio para socios de San Ignacio Rugby Club.\n${window.location.href}`
+  if (navigator.share) {
+    navigator.share({ title: beneficio.nombre_comercio, text: texto, url: window.location.href }).catch(() => {})
+  } else {
+    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, '_blank', 'noreferrer')
+  }
+}
 
 export default function BeneficioDetallePage() {
   const { id } = useParams<{ id: string }>()
@@ -9,6 +20,7 @@ export default function BeneficioDetallePage() {
   const [beneficio, setBeneficio] = useState<Beneficio | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const { esFavorito, toggle } = useFavoritos()
 
   useEffect(() => {
     if (!id) return
@@ -47,6 +59,7 @@ export default function BeneficioDetallePage() {
   const vigente = !beneficio.vigencia_hasta || new Date(beneficio.vigencia_hasta) >= new Date()
   const tel = whatsappUrl(beneficio)
   const maps = mapaUrl(beneficio)
+  const favorito = esFavorito(beneficio.id)
 
   return (
     <div className="min-h-screen bg-surface-chalk pb-28">
@@ -60,6 +73,27 @@ export default function BeneficioDetallePage() {
         >
           <span className="material-symbols-outlined text-2xl">arrow_back</span>
         </button>
+        <div className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))] flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => compartirBeneficio(beneficio)}
+            aria-label="Compartir este beneficio"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white backdrop-blur-md transition-all hover:bg-black/60"
+          >
+            <span className="material-symbols-outlined text-xl">share</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => toggle(beneficio.id)}
+            aria-label={favorito ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+            aria-pressed={favorito}
+            className={`flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-black/40 backdrop-blur-md transition-all hover:bg-black/60 ${
+              favorito ? 'text-cardinal-400' : 'text-white'
+            }`}
+          >
+            <span className="material-symbols-outlined text-xl">{favorito ? 'favorite' : 'favorite_border'}</span>
+          </button>
+        </div>
         <span className="absolute bottom-4 left-5 flex items-center gap-1.5 rounded-full bg-ivy-900/70 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-white shadow-md backdrop-blur-sm">
           <span className="material-symbols-outlined text-xs">{RUBRO_ICON[beneficio.rubro]}</span>
           {RUBRO_LABEL[beneficio.rubro]}
@@ -69,9 +103,7 @@ export default function BeneficioDetallePage() {
       <div className="mx-auto flex max-w-[480px] flex-col gap-6 px-5 pt-5">
         <div className="flex items-start justify-between gap-3">
           <div className="flex flex-1 items-start gap-3.5">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-ivy-500/20 bg-ivy-50 shadow-sm">
-              <span className="material-symbols-outlined text-3xl text-ivy-700">{RUBRO_ICON[beneficio.rubro]}</span>
-            </div>
+            <BeneficioLogo beneficio={beneficio} className="h-14 w-14 rounded-2xl border border-ivy-500/20 shadow-sm" iconSize="text-3xl" />
             <div className="min-w-0 flex-1 pt-0.5">
               <h1 className="font-serif text-[22px] font-bold leading-tight tracking-tight text-ivy-700">
                 {beneficio.nombre_comercio}

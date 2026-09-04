@@ -104,12 +104,15 @@ src/
     beneficios/
       FeaturedBeneficio.tsx        # Card grande "Destacado de la semana"
       BeneficioCard.tsx              # Card de comercio en el listado
+      BeneficioLogo.tsx                # Logo del comercio (logo_url) o ícono de rubro como fallback
   lib/
     supabase.ts             # Cliente Supabase
     AuthContext.tsx           # Sesión de Supabase Auth — en pausa, no enrutado
     socios.ts                   # Acceso a datos de socios + caché offline
     solicitudes.ts                # signUp + alta pendiente — en pausa, no enrutado
     beneficios.ts                    # Acceso a datos de beneficios + helpers de mapa/whatsapp
+    geo.ts                              # Distancia (Haversine) + hook useUbicacion (geolocalización on-demand)
+    favoritos.ts                          # Hook useFavoritos (localStorage, sin login)
     types.ts                            # Tipos Socio / RegistroAcceso / SolicitudAcceso / Beneficio
     useWakeLock.ts                        # Hook para "subir brillo" (Wake Lock API)
   pages/
@@ -161,6 +164,23 @@ supabase/
   comercio cargó `telefono` / `whatsapp` / `direccion` respectivamente.
   **Se gestiona 100% desde el Table Editor de Supabase** (tabla
   `beneficios`) — no hay pantalla de admin para cargar comercios todavía.
+  - **Favoritos**: corazón en cada card (listado, destacado y detalle) que
+    guarda el `id` del beneficio en `localStorage`
+    (`sir.beneficiosFavoritos`, ver `lib/favoritos.ts`) — no requiere login
+    ni backend. El chip "Favoritos" del listado filtra sólo los marcados.
+  - **Cerca mío**: botón que pide la ubicación del navegador **sólo cuando
+    se toca** (`useUbicacion` en `lib/geo.ts`, nunca al cargar la página).
+    Con la ubicación disponible, cada card muestra la distancia (Haversine,
+    `distanciaMetros`/`formatDistancia`) al comercio si éste tiene `lat`/`lng`
+    cargados, y el listado se reordena de más cerca a más lejos.
+  - **Compartir**: botón en el detalle que usa `navigator.share` (Web Share
+    API) y, si el navegador no lo soporta, abre un link de WhatsApp
+    (`wa.me`) con el texto armado — pensado para que un socio recomiende el
+    beneficio a otro socio (distinto del botón "WhatsApp" de la barra
+    inferior, que contacta directamente al comercio).
+  - **Logo del comercio**: si el beneficio tiene `logo_url` cargado, se
+    muestra ese logo (en una caja blanca) en vez del ícono genérico del
+    rubro — ver `BeneficioLogo.tsx`.
 
 ## Setup
 
@@ -200,6 +220,15 @@ que aparece arriba de todo). Dejé una fila `activo = true` llamada **"EJEMPLO
 — reemplazar por un comercio real"** para no mostrar la lista vacía —
 desactivala (`activo = false`) o borrala cuando carguen datos reales.
 
+Para las funcionalidades nuevas (opcionales, mejoran la experiencia pero no
+son obligatorias):
+- `logo_url`: link público a la imagen del logo del comercio (ej. subida a
+  Supabase Storage o cualquier hosting). Si queda vacío, se muestra el
+  ícono genérico del rubro.
+- `lat` / `lng`: coordenadas del comercio (double precision) para que
+  "Cerca mío" pueda calcular la distancia. Si quedan vacíos, esa card
+  simplemente no muestra distancia.
+
 **Importante**: no hay que inventar el % de descuento ni las condiciones de
 un comercio real — cargar sólo lo que el comercio efectivamente confirmó.
 
@@ -218,7 +247,11 @@ deliberado del MVP mientras no haya login.
   cambio operativo — ver la sección de arriba, el trabajo ya está hecho.
 - **Cargar los comercios/sponsors reales en `beneficios`** — ver la sección
   de arriba. Quedó pendiente confirmar el detalle exacto (rubro, %,
-  condiciones, contacto) de cada sponsor antes de cargarlos.
+  condiciones, contacto) de cada sponsor antes de cargarlos. También quedó
+  pendiente recibir los archivos de logo reales (u URLs públicas) de Open
+  Sports, Kussifay pizza&burguer y Océano Pinturerías para completar
+  `logo_url` — las imágenes pegadas directamente en el chat no quedan
+  accesibles como archivo en este entorno.
 - **Parrillas, Club, Perfil** — resto de la Fase 2/3 del PRD. El `BottomNav`
   ya muestra esas 3 pestañas (deshabilitadas, con tooltip "Próximamente")
   para no perder la identidad de la IA completa.

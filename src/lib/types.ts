@@ -62,6 +62,9 @@ export interface Beneficio {
   telefono: string | null
   whatsapp: string | null
   mapa_url: string | null
+  logo_url: string | null
+  lat: number | null
+  lng: number | null
   vigencia_hasta: string | null
   destacado: boolean
   activo: boolean

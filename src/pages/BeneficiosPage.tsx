@@ -3,6 +3,8 @@ import { BottomNav } from '../components/BottomNav'
 import { BeneficioCard } from '../components/beneficios/BeneficioCard'
 import { FeaturedBeneficio } from '../components/beneficios/FeaturedBeneficio'
 import { fetchBeneficios } from '../lib/beneficios'
+import { useFavoritos } from '../lib/favoritos'
+import { distanciaMetros, formatDistancia, useUbicacion } from '../lib/geo'
 import type { Beneficio, Rubro } from '../lib/types'
 import { RUBRO_LABEL } from '../lib/types'
 
@@ -14,6 +16,11 @@ export default function BeneficiosPage() {
   const [error, setError] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const [rubroActivo, setRubroActivo] = useState<Rubro | 'TODOS'>('TODOS')
+  const [soloFavoritos, setSoloFavoritos] = useState(false)
+  const [ordenarPorCercania, setOrdenarPorCercania] = useState(false)
+
+  const { esFavorito, toggle } = useFavoritos()
+  const { ubicacion, loading: ubicando, error: errorUbicacion, solicitar } = useUbicacion()
 
   useEffect(() => {
     let cancelado = false
@@ -32,13 +39,26 @@ export default function BeneficiosPage() {
     }
   }, [])
 
+  function distanciaTexto(b: Beneficio): string | undefined {
+    if (!ubicacion || b.lat == null || b.lng == null) return undefined
+    return formatDistancia(distanciaMetros(ubicacion, { lat: b.lat, lng: b.lng }))
+  }
+
+  function handleCercaMio() {
+    setOrdenarPorCercania(true)
+    if (!ubicacion) solicitar()
+  }
+
   const destacado = useMemo(() => beneficios.find((b) => b.destacado), [beneficios])
+
+  const destacadoEnListado = soloFavoritos || rubroActivo !== 'TODOS' || !!busqueda.trim()
 
   const filtrados = useMemo(() => {
     const texto = busqueda.trim().toLowerCase()
-    return beneficios.filter((b) => {
-      if (b === destacado) return false
+    let lista = beneficios.filter((b) => {
+      if (b === destacado && !destacadoEnListado) return false
       if (rubroActivo !== 'TODOS' && b.rubro !== rubroActivo) return false
+      if (soloFavoritos && !esFavorito(b.id)) return false
       if (!texto) return true
       return (
         b.nombre_comercio.toLowerCase().includes(texto) ||
@@ -46,7 +66,16 @@ export default function BeneficiosPage() {
         (b.subtitulo?.toLowerCase().includes(texto) ?? false)
       )
     })
-  }, [beneficios, busqueda, rubroActivo, destacado])
+    if (ordenarPorCercania && ubicacion) {
+      lista = [...lista].sort((a, b) => {
+        const da = a.lat != null && a.lng != null ? distanciaMetros(ubicacion, { lat: a.lat, lng: a.lng }) : Infinity
+        const db = b.lat != null && b.lng != null ? distanciaMetros(ubicacion, { lat: b.lat, lng: b.lng }) : Infinity
+        return da - db
+      })
+    }
+    return lista
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [beneficios, busqueda, rubroActivo, destacado, destacadoEnListado, soloFavoritos, esFavorito, ordenarPorCercania, ubicacion])
 
   return (
     <div className="flex min-h-screen flex-col bg-surface-chalk">
@@ -94,12 +123,38 @@ export default function BeneficiosPage() {
             ))}
           </div>
 
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCercaMio}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+                ordenarPorCercania && ubicacion ? 'bg-ivy-500 text-white shadow-sm' : 'bg-white text-ivy-700 hover:bg-ivy-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">
+                {ubicando ? 'progress_activity' : 'my_location'}
+              </span>
+              {ubicando ? 'Ubicándote…' : 'Cerca mío'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSoloFavoritos((v) => !v)}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+                soloFavoritos ? 'bg-cardinal-500 text-white shadow-sm' : 'bg-white text-gray-500 hover:bg-ivy-50'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">{soloFavoritos ? 'favorite' : 'favorite_border'}</span>
+              Favoritos
+            </button>
+          </div>
+          {errorUbicacion && <p className="-mt-2 text-xs text-wine">{errorUbicacion}</p>}
+
           {loading && <p className="py-8 text-center text-sm text-gray-400">Cargando beneficios…</p>}
           {error && <p className="py-8 text-center text-sm font-medium text-wine">No pudimos cargar los beneficios. Probá de nuevo en unos minutos.</p>}
 
           {!loading && !error && (
             <>
-              {destacado && rubroActivo === 'TODOS' && !busqueda.trim() && (
+              {destacado && rubroActivo === 'TODOS' && !busqueda.trim() && !soloFavoritos && (
                 <section className="flex flex-col gap-2">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-gray-500">Destacado de la semana</span>
@@ -108,7 +163,12 @@ export default function BeneficiosPage() {
                       Club Partner
                     </span>
                   </div>
-                  <FeaturedBeneficio beneficio={destacado} />
+                  <FeaturedBeneficio
+                    beneficio={destacado}
+                    esFavorito={esFavorito(destacado.id)}
+                    onToggleFavorito={() => toggle(destacado.id)}
+                    distanciaTexto={distanciaTexto(destacado)}
+                  />
                 </section>
               )}
 
@@ -120,7 +180,15 @@ export default function BeneficiosPage() {
                 {filtrados.length === 0 ? (
                   <p className="py-6 text-center text-sm text-gray-400">No encontramos beneficios con ese filtro.</p>
                 ) : (
-                  filtrados.map((b) => <BeneficioCard key={b.id} beneficio={b} />)
+                  filtrados.map((b) => (
+                    <BeneficioCard
+                      key={b.id}
+                      beneficio={b}
+                      esFavorito={esFavorito(b.id)}
+                      onToggleFavorito={() => toggle(b.id)}
+                      distanciaTexto={distanciaTexto(b)}
+                    />
+                  ))
                 )}
               </section>
             </>

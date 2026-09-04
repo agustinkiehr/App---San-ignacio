@@ -208,6 +208,9 @@ create table if not exists beneficios (
     telefono varchar(30),
     whatsapp varchar(30),
     mapa_url text,
+    logo_url text,
+    lat double precision,
+    lng double precision,
     vigencia_hasta date,
     destacado boolean not null default false,
     activo boolean not null default true,
@@ -215,10 +218,17 @@ create table if not exists beneficios (
     created_at timestamptz not null default now()
 );
 
+alter table beneficios add column if not exists logo_url text;
+alter table beneficios add column if not exists lat double precision;
+alter table beneficios add column if not exists lng double precision;
+
 comment on table beneficios is 'Comercios adheridos con descuentos para socios (Fase 2 del PRD). Se gestiona a mano desde el Table Editor de Supabase, no hay panel de admin propio.';
 comment on column beneficios.rubro is 'Categoría para los chips de filtro: GASTRONOMIA, DEPORTES, SALUD, INDUMENTARIA, OTROS.';
 comment on column beneficios.condiciones is 'Lista de condiciones de uso, una por elemento (se muestran como bullets en el detalle).';
 comment on column beneficios.destacado is 'true = aparece en la sección "Destacado de la semana" arriba del listado.';
+comment on column beneficios.logo_url is 'Logo del comercio (URL pública). Si es null, se muestra el ícono genérico del rubro.';
+comment on column beneficios.lat is 'Latitud del comercio, opcional. Si está cargada (junto con lng), habilita el orden "Cerca mío" en el listado.';
+comment on column beneficios.lng is 'Longitud del comercio, opcional.';
 
 create index if not exists idx_beneficios_rubro on beneficios (rubro);
 create index if not exists idx_beneficios_activo on beneficios (activo);
