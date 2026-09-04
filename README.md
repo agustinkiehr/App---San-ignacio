@@ -1,16 +1,15 @@
 # San Ignacio Rugby — App de Socios (MVP)
 
-PWA para socios de San Ignacio Rugby. Alcance de esta iteración: **Carnet
-Digital** (al día / en mora) + **Panel de Portería** con validación de acceso
-por QR, DNI o número de socio. Construida sobre el UI kit real de Stitch
+PWA para socios de San Ignacio Rugby. Alcance de esta iteración: **Login +
+Solicitar Acceso**, **Carnet Digital** (al día / en mora) y **Panel de
+Portería** con validación de acceso por QR, DNI o número de socio.
+Construida sobre el UI kit real de Stitch
 (`stitch_san_ignacio_rugby_socios_app`) y el PRD del club — ver
 `docs/prd_san_ignacio_rugby_club.md` para el roadmap completo (Fases 1-3).
 
-Todavía **no hay login** (Fase 1 del PRD incluye "Login + Solicitar Acceso"
-con Supabase Auth; quedó fuera de esta iteración a propósito — ver
-"Próximos pasos" más abajo). Mientras tanto, el socio ingresa su número para
-ver su carnet, y la tablet de portería opera como dispositivo de confianza
-física sin su propio login.
+Con esto queda completa la Fase 1 del PRD. El panel de portería sigue **sin
+su propio login** (queda como dispositivo de confianza física en el club;
+ver "Sobre RLS y autenticación" más abajo).
 
 ## Stack
 
@@ -21,10 +20,9 @@ física sin su propio login.
   `#D12D2E`, ocre `#B8791F` (cuota por vencer), vino `#9B1C1D` (vencida/mora),
   `Libre Caslon Text` (títulos) + `Inter` (cuerpo/datos) + Material Symbols
   Outlined (iconografía, igual que el export de Stitch).
-- **Supabase** (`@supabase/supabase-js`) para el modelo de datos. El MCP de
-  Supabase del proyecto (`djlfujusrdtqcgfdnztj`) está declarado en
-  `.mcp.json` — se conecta la primera vez que Claude Code lo usa en una
-  sesión nueva.
+- **Supabase** (`@supabase/supabase-js`) para datos **y Auth** (login por
+  email/DNI + contraseña). El MCP de Supabase del proyecto
+  (`djlfujusrdtqcgfdnztj`) está declarado en `.mcp.json`.
 - **qrcode.react** para el QR dinámico del carnet (nivel de corrección `H`,
   con el isologo incrustado y excavado automáticamente).
 - **html5-qrcode** para el escáner de cámara del panel de portería.
@@ -53,21 +51,26 @@ src/
     StatusBadge.tsx          # Chip de estado de cuota (al día/pendiente/inactivo)
     BottomNav.tsx             # Nav inferior de 5 pestañas (sólo "Carnet" activa)
     QrScanner.tsx              # Wrapper de cámara sobre html5-qrcode
+    RequireAuth.tsx             # Guard de ruta: sin sesión, redirige a /login
     porteria/
       ScanResultCard.tsx        # Resultado de la última lectura + override
       RecentAccessList.tsx       # Últimos accesos en vivo
       ManualEntryForm.tsx         # Ingreso manual por DNI/N° de socio
   lib/
     supabase.ts             # Cliente Supabase
-    socios.ts                 # Acceso a datos (ver más abajo) + caché offline
-    types.ts                    # Tipos Socio / RegistroAcceso / EstadoCuota
-    useWakeLock.ts                # Hook para "subir brillo" (Wake Lock API)
+    AuthContext.tsx           # Sesión de Supabase Auth (useAuth)
+    socios.ts                   # Acceso a datos de socios + caché offline
+    solicitudes.ts                # signUp + alta pendiente + resolver DNI->email
+    types.ts                        # Tipos Socio / RegistroAcceso / SolicitudAcceso
+    useWakeLock.ts                    # Hook para "subir brillo" (Wake Lock API)
   pages/
     HomePage.tsx               # Selección Mi Carnet / Panel de Portería
-    CarnetPage.tsx                # Vista de carnet del socio (con caché offline)
-    PorteriaPage.tsx                # Dashboard de portería completo
+    LoginPage.tsx                 # Email o DNI + contraseña
+    SolicitarAccesoPage.tsx         # Alta de socio (queda pendiente de aprobación)
+    CarnetPage.tsx                    # Carnet del socio logueado (con caché offline)
+    PorteriaPage.tsx                    # Dashboard de portería completo
 supabase/
-  schema.sql                        # DDL completo (tablas, índices, RLS, datos demo)
+  schema.sql                            # DDL completo (tablas, RLS, triggers, RPC, datos demo)
 ```
 
 ## Reglas de negocio implementadas
@@ -76,11 +79,25 @@ supabase/
   ceros a la izquierda (`01850`). `normalizeNumeroSocio()` en
   `src/lib/socios.ts` hace ese padding tanto al generar el carnet como al leer
   el QR en portería.
+- **Login**: el socio ingresa con email **o DNI** + contraseña. Si escribe un
+  DNI, el login llama a la función `dni_to_email` (RPC en Postgres,
+  `security definer`, sólo devuelve el email — nunca expone `auth.users`) para
+  resolverlo antes de autenticar. `/carnet` está protegido por `RequireAuth`:
+  sin sesión, redirige a `/login`.
+- **Solicitar Acceso**: crea la cuenta en Supabase Auth (`signUp`) y una fila
+  en `solicitudes_acceso` con `estado = 'PENDIENTE'`. **Secretaría aprueba a
+  mano** en el Table Editor de Supabase (no hay panel de admin propio
+  todavía — ver más abajo). Al pasar `estado` a `'APROBADA'`, un trigger
+  (`link_socio_on_approval`) vincula automáticamente `socios.user_id` si el
+  DNI o número de socio ya existe en el padrón; si no matchea (padrón
+  incompleto, error de tipeo), hay que setear `socios.user_id` a mano.
 - **Carnet**: variante "al día" (chip verde) vs. "en mora" (badge "Acceso
   limitado" + chip ocre/vino + caja de aviso), según `estado_cuota`. Si la
   red falla, usa la última copia guardada en `localStorage`
-  (`cacheSocio`/`getCachedSocio`) para que el carnet siga funcionando sin
-  conexión, con un aviso visible de que los datos son los últimos guardados.
+  (`cacheMiSocio`/`getCachedMiSocio`, por `user_id`) para que el carnet siga
+  funcionando sin conexión, con un aviso visible de que los datos son los
+  últimos guardados. Si la cuenta todavía no está vinculada a un socio,
+  muestra el estado de la solicitud (pendiente/rechazada/sin solicitud).
 - **Portería**, al resolver un socio (por cámara, DNI o número manual):
   1. Busca el socio (`fetchSocioByNumero` para QR, `fetchSocioByDniOrNumero`
      para el ingreso manual).
@@ -112,37 +129,55 @@ migración directamente contra el proyecto. Si preferís hacerlo a mano:
 
 1. Abrir el SQL Editor del proyecto en supabase.com.
 2. Correr `supabase/schema.sql` (es idempotente, se puede re-correr sin
-   romper nada). Crea `socios`, `registros_acceso`, índices, políticas de
-   RLS y 3 socios de ejemplo (incluye `01850 - Kiehr, Agustín - AL_DIA`,
-   igual al carnet de referencia, con DNI y vencimiento de ejemplo).
+   romper nada). Crea `socios`, `registros_acceso`, `solicitudes_acceso`,
+   índices, RLS, el trigger de auto-vinculación, la función `dni_to_email` y
+   4 socios de ejemplo (incluye `01850 - Kiehr, Agustín - AL_DIA`, igual al
+   carnet de referencia, con DNI y vencimiento de ejemplo).
 3. Copiar la URL del proyecto y la `anon key` (Project Settings → API) a
    `.env`.
 
-### Sobre RLS y autenticación (siguiente paso, Fase 1 del PRD)
+### Cómo aprobar una solicitud de alta (secretaría)
 
-Sin login todavía, las políticas de RLS permiten **lectura y escritura
-pública** de `socios` y `registros_acceso` con la anon key — necesario para
-que tanto el carnet como el dashboard de portería (contador, últimos
-accesos) funcionen sin backend propio. Es un trade-off deliberado: cualquiera
-con la anon key puede leer el padrón completo y el historial de accesos.
+1. Supabase Dashboard → **Table Editor** → `solicitudes_acceso`.
+2. Buscar la fila `PENDIENTE`, revisar los datos (DNI, teléfono, email) contra
+   el padrón real del club.
+3. Editar la fila y cambiar `estado` a `APROBADA` (o `RECHAZADA`).
+4. Si el DNI o número de socio coincide con una fila de `socios`, la cuenta
+   queda vinculada automáticamente. Si no (padrón incompleto todavía, o el
+   dato no coincide), abrir `socios`, buscar al socio correcto y pegar a mano
+   el `user_id` de la solicitud en su fila.
 
-Cuando se implemente Login + Solicitar Acceso (Fase 1, pantallas ya
-diseñadas en Stitch: `inicio_de_sesion`, `solicitar_acceso`), hay que:
+### Sobre RLS y autenticación
 
-- Vincular `socios` a `auth.users` (`user_id uuid references auth.users(id)`).
-- Restringir el `select` de `socios` a `auth.uid() = user_id` para la vista
-  del socio, y a un rol `portero` autenticado para el escaneo/dashboard.
+Los socios ya tienen login real (Supabase Auth). El panel de portería **sigue
+sin login propio** — es un trade-off deliberado del PRD (Fase 1 no lo pide
+todavía) y por eso `socios`/`registros_acceso` se mantienen de lectura (y en
+el caso de `registros_acceso`, también inserción) **pública** con la anon
+key: portería necesita resolver cualquier socio por QR/DNI y mostrar
+"ingresos hoy"/últimos accesos sin sesión. Cualquiera con la anon key puede
+seguir leyendo el padrón completo y el historial de accesos.
+
+Cuando el panel de portería tenga su propio login (rol `portero`), hay que:
+
+- Restringir el `select` de `socios` a `auth.uid() = user_id` (el socio sólo
+  ve su fila) más una condición de rol `portero` para el escaneo.
 - Restringir `registros_acceso` (select e insert) al rol `portero`.
-- Sumar una tabla de altas pendientes (`solicitudes_acceso`) que secretaría
-  aprueba manualmente, tal como describe el PRD.
 
 ## Próximos pasos (fuera de esta iteración)
 
-- **Login + Solicitar Acceso** (Supabase Auth, altas pendientes de
-  aprobación por secretaría) — Fase 1 del PRD, ya diseñado en Stitch.
+- **Panel de portería con su propio login** (rol `portero`), para cerrar el
+  trade-off de RLS descripto arriba.
 - **Beneficios, Parrillas, Club, Perfil** — Fase 2/3 del PRD. El `BottomNav`
   ya muestra esas 4 pestañas (deshabilitadas, con tooltip "Próximamente")
   para no perder la identidad de la IA completa.
+- **Panel de admin para secretaría** en vez de aprobar altas a mano en el
+  Table Editor de Supabase (por ahora, decisión deliberada para no sumar una
+  pantalla + rol de admin todavía).
+- El botón "Escanear carnet físico rápido" y el link de WhatsApp a
+  secretaría del diseño de Stitch quedaron afuera: el primero implicaría
+  autenticar con el mismo QR público del carnet (no es un mecanismo seguro
+  real), y el segundo necesita el número real de WhatsApp del club, que no
+  tengo — pasámelo y lo sumo.
 - Reemplazar el avatar por foto real (`socios.foto_url`) cuando haya carga
   de fotos del padrón.
 

@@ -19,6 +19,13 @@ export async function fetchSocioByNumero(numeroSocio: string): Promise<Socio | n
   return data
 }
 
+/** El socio logueado consultando su propio carnet (RequireAuth ya garantiza sesión). */
+export async function fetchSocioByUserId(userId: string): Promise<Socio | null> {
+  const { data, error } = await supabase.from('socios').select('*').eq('user_id', userId).maybeSingle()
+  if (error) throw error
+  return data
+}
+
 /** Ingreso manual en portería cuando el QR falla: acepta DNI o número de socio. */
 export async function fetchSocioByDniOrNumero(raw: string): Promise<Socio | null> {
   const digits = raw.trim().replace(/\D/g, '')
@@ -78,17 +85,17 @@ export async function fetchUltimosAccesos(limit = 3): Promise<RegistroAccesoConS
 
 const CARNET_CACHE_PREFIX = 'sir.carnetCache.'
 
-export function cacheSocio(socio: Socio): void {
+export function cacheMiSocio(userId: string, socio: Socio): void {
   try {
-    localStorage.setItem(`${CARNET_CACHE_PREFIX}${socio.numero_socio}`, JSON.stringify(socio))
+    localStorage.setItem(`${CARNET_CACHE_PREFIX}${userId}`, JSON.stringify(socio))
   } catch {
     // localStorage no disponible (modo privado, etc.): sin caché offline, sin romper el flujo.
   }
 }
 
-export function getCachedSocio(numeroSocio: string): Socio | null {
+export function getCachedMiSocio(userId: string): Socio | null {
   try {
-    const raw = localStorage.getItem(`${CARNET_CACHE_PREFIX}${numeroSocio}`)
+    const raw = localStorage.getItem(`${CARNET_CACHE_PREFIX}${userId}`)
     return raw ? (JSON.parse(raw) as Socio) : null
   } catch {
     return null

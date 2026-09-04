@@ -29,14 +29,21 @@ alter table socios add column if not exists dni varchar(20) unique;
 alter table socios add column if not exists foto_url text;
 alter table socios add column if not exists vencimiento date;
 
+-- Login (ver sección "Solicitudes de acceso" más abajo): vincula el socio del
+-- padrón con su cuenta de Supabase Auth una vez que la solicitud es aprobada.
+alter table socios add column if not exists user_id uuid unique references auth.users(id) on delete set null;
+alter table socios add column if not exists email varchar(255);
+
 comment on table socios is 'Padrón de socios del club, con el estado de cuota vigente.';
 comment on column socios.numero_socio is 'Número de socio en texto plano, tal como se codifica en el QR físico del carnet (5 dígitos, con ceros a la izquierda).';
 comment on column socios.dni is 'DNI del socio, para el ingreso manual en portería cuando el QR falla y para un futuro login por DNI.';
 comment on column socios.vencimiento is 'Próximo vencimiento de cuota mostrado en el carnet (informativo; no hay pasarela de pago en el MVP).';
+comment on column socios.user_id is 'Cuenta de Supabase Auth vinculada, una vez que la solicitud de acceso del socio fue aprobada.';
 
 create index if not exists idx_socios_numero_socio on socios (numero_socio);
 create index if not exists idx_socios_dni on socios (dni);
 create index if not exists idx_socios_estado_cuota on socios (estado_cuota);
+create index if not exists idx_socios_user_id on socios (user_id);
 
 -- =========================================================
 -- Tabla: registros_acceso
@@ -59,21 +66,109 @@ create index if not exists idx_registros_acceso_socio_id on registros_acceso (so
 create index if not exists idx_registros_acceso_fecha_hora on registros_acceso (fecha_hora desc);
 
 -- =========================================================
+-- Tabla: solicitudes_acceso
+-- =========================================================
+-- Alta de socio (Login + Solicitar Acceso, Fase 1 del PRD). El socio se
+-- autentica primero con Supabase Auth (signUp) y después queda en esta tabla
+-- como PENDIENTE hasta que secretaría la revisa a mano en el Table Editor de
+-- Supabase (Project > Table Editor > solicitudes_acceso > cambiar `estado` a
+-- 'APROBADA' o 'RECHAZADA'). No hay panel de admin propio todavía.
+create table if not exists solicitudes_acceso (
+    id uuid primary key default gen_random_uuid(),
+    user_id uuid not null unique references auth.users(id) on delete cascade,
+    numero_socio varchar(10),
+    dni varchar(20) not null,
+    email varchar(255) not null,
+    telefono varchar(30) not null,
+    estado varchar(20) not null default 'PENDIENTE'
+        check (estado in ('PENDIENTE', 'APROBADA', 'RECHAZADA')),
+    notas text,
+    created_at timestamptz not null default now(),
+    revisado_at timestamptz
+);
+
+comment on table solicitudes_acceso is 'Altas de socios pendientes de aprobación manual por secretaría (ver panel de Supabase: Table Editor > solicitudes_acceso).';
+
+create index if not exists idx_solicitudes_estado on solicitudes_acceso (estado);
+create index if not exists idx_solicitudes_dni on solicitudes_acceso (dni);
+
+alter table solicitudes_acceso enable row level security;
+
+drop policy if exists "solicitudes_insert_propia" on solicitudes_acceso;
+create policy "solicitudes_insert_propia"
+    on solicitudes_acceso for insert
+    with check (auth.uid() = user_id);
+
+drop policy if exists "solicitudes_select_propia" on solicitudes_acceso;
+create policy "solicitudes_select_propia"
+    on solicitudes_acceso for select
+    using (auth.uid() = user_id);
+
+-- Al aprobar (estado -> APROBADA), vincula automáticamente el socio del
+-- padrón que matchee por DNI o número de socio. Si no hay match (padrón no
+-- cargado aún, DNI no coincide), secretaría vincula a mano seteando
+-- socios.user_id en el Table Editor.
+create or replace function link_socio_on_approval()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.estado = 'APROBADA' and (old.estado is distinct from 'APROBADA') then
+    update socios
+    set user_id = new.user_id, email = new.email
+    where user_id is null
+      and (dni = new.dni or (new.numero_socio is not null and numero_socio = new.numero_socio));
+
+    new.revisado_at = now();
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_link_socio_on_approval on solicitudes_acceso;
+create trigger trg_link_socio_on_approval
+before update on solicitudes_acceso
+for each row
+execute function link_socio_on_approval();
+
+-- link_socio_on_approval es una función de trigger, nunca debería exponerse
+-- como endpoint RPC público. Revocar el EXECUTE no afecta al trigger: dispara
+-- a nivel del motor, no a través de la capa de roles de PostgREST.
+revoke execute on function link_socio_on_approval() from anon, authenticated, public;
+
+-- RPC segura: resuelve DNI -> email para el login sin exponer auth.users.
+-- Intencionalmente ejecutable por `anon`: el login por DNI necesita esto
+-- ANTES de que el usuario tenga sesión. Sólo devuelve el email, nada más.
+create or replace function dni_to_email(p_dni text)
+returns text
+language sql
+security definer
+set search_path = public, auth
+stable
+as $$
+  select u.email
+  from socios s
+  join auth.users u on u.id = s.user_id
+  where s.dni = p_dni
+  limit 1;
+$$;
+
+grant execute on function dni_to_email(text) to anon, authenticated;
+
+-- =========================================================
 -- Row Level Security
 -- =========================================================
--- MVP: todavía sin login (la app usa la anon key tanto desde el teléfono del
--- socio como desde la tablet de portería, que en esta fase se asume un
--- dispositivo de confianza física en el club, sin autenticación propia).
---
--- Se habilita lectura pública de socios (necesaria para resolver el QR/DNI) y
--- lectura + inserción pública de registros_acceso (el panel de portería
--- necesita mostrar "ingresos hoy" y los últimos accesos en vivo). Esto es un
--- trade-off deliberado del MVP: cualquiera con la anon key puede leer el
--- padrón completo y el historial de accesos. Cuando se sume autenticación de
--- socios/portero (Fase 1 del PRD: Login + Solicitar Acceso), hay que
--- reemplazar estas políticas por reglas basadas en auth.uid() / rol
--- ('socio' sólo ve su propia fila; 'portero' autenticado es el único que lee
--- registros_acceso).
+-- Los socios ya tienen login (arriba), pero el panel de portería sigue sin
+-- autenticación propia (Fase 1 del PRD no la incluye todavía; la tablet de
+-- portería se asume un dispositivo de confianza física en el club). Por eso
+-- `socios` y `registros_acceso` se mantienen de lectura pública: portería
+-- necesita poder resolver cualquier socio por QR/DNI, y mostrar "ingresos
+-- hoy"/últimos accesos sin sesión. Esto es un trade-off deliberado: cualquiera
+-- con la anon key puede seguir leyendo el padrón completo y el historial de
+-- accesos. Cuando el panel de portería tenga su propio login (rol 'portero'),
+-- hay que restringir estas políticas a auth.uid()/rol en vez de `using (true)`.
 
 alter table socios enable row level security;
 alter table registros_acceso enable row level security;
@@ -101,5 +196,6 @@ insert into socios (numero_socio, dni, nombre, apellido, categoria, estado_cuota
 values
     ('01850', '30123456', 'Agustin', 'Kiehr', 'Rugby Plantel Superior', 'AL_DIA', '2026-12-31'),
     ('00234', '28456789', 'Maria', 'Gonzalez', 'Hockey Intermedia', 'PENDIENTE', '2026-07-31'),
-    ('00099', '15678901', 'Carlos', 'Perez', 'Vitalicio', 'INACTIVO', '2025-01-31')
+    ('00099', '15678901', 'Carlos', 'Perez', 'Vitalicio', 'INACTIVO', '2025-01-31'),
+    ('00002', null, 'Gabriel', 'Cabrera', 'Jugador Activo', 'AL_DIA', '2026-12-31')
 on conflict (numero_socio) do nothing;
